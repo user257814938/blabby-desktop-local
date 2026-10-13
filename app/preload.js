@@ -1,6 +1,7 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('localBlabby',{
   status:()=>ipcRenderer.invoke('local-status'),
+  selectModel:key=>ipcRenderer.invoke('local-model',key),
   transcribe:(buffer,language,insert)=>ipcRenderer.invoke('local-transcribe',buffer,language,insert),
   recordingState:value=>ipcRenderer.send('local-recording-state',value),
   audioLevel:value=>ipcRenderer.send('local-audio-level',value),

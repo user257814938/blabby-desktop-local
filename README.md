@@ -1,16 +1,25 @@
 # Blabby desktop local
 
-Prototype Windows de dictée locale : Electron, JavaScript et Python / faster-whisper. Aucun compte ni quota. Le modèle fonctionne sur CPU en int8.
+Prototype Windows de dictée locale avec Electron, JavaScript et Python / faster-whisper. Aucun compte ni quota. Le modèle fonctionne sur CPU en int8.
 
 ## Utilisation
 
-Laisser Blabby ouvert ou réduit, cliquer dans un champ acceptant le collage, puis **Ctrl + Espace** pour enregistrer et à nouveau pour transcrire. Aucun appui sur Entrée n'est envoyé. Un bandeau indique l'enregistrement avec un voyant rouge et des barres suivant le niveau du microphone. La transcription reste dans Blabby ; seul le bouton Copier le texte modifie le presse-papiers.
+1. Lancer Blabby et attendre « Modèle prêt ».
+2. Choisir le modèle et la langue dans la fenêtre principale.
+3. Cliquer dans le champ où écrire, puis **Ctrl + Espace** pour enregistrer.
+4. Appuyer à nouveau pour arrêter, transcrire et insérer le texte au curseur.
 
-La fenêtre principale se réduit si le raccourci est déclenché depuis Blabby. Aucun collage automatique dans une autre application. Le micro peut capter les sons ambiants. L'historique dure uniquement pendant la session.
+L'insertion utilise les événements Unicode Windows : elle ne lit ni ne modifie le presse-papiers et n'envoie pas Entrée. Garder le même champ et la même fenêtre actifs jusqu'à la fin. En cas d'échec, Blabby affiche la transcription pour récupération manuelle. Certains champs ou applications exécutées comme administrateur peuvent refuser l'insertion.
+
+Pendant l'enregistrement, une petite vague réagissant au microphone apparaît en bas de l'écran du pointeur, au-dessus de la barre des tâches. Elle disparaît dès l'arrêt. La transcription continue en arrière-plan. Le micro peut capter les sons ambiants.
+
+Fermer la fenêtre laisse Blabby actif dans la zone de notification. Double-cliquer l'icône pour rouvrir ; choisir **Quitter Blabby** dans son menu pour arrêter complètement. Une seule instance utilise le raccourci.
+
+Le bouton **Copier le texte** permet une copie volontaire. Import audio : maximum 50 Mo par fichier. L'historique est conservé uniquement pendant la session.
 
 ## Lancement depuis les sources
 
-Prérequis : Windows 64 bits, Node.js 22.12 ou plus récent avec npm, Python 3.12 et un modèle **faster-whisper** déjà téléchargé. Le dossier du modèle doit contenir `model.bin` et ses fichiers associés ; un modèle Whisper `.pt` ne convient pas.
+Prérequis : Windows 64 bits, Node.js 22.12 ou plus récent avec npm, Python 3.12 et un modèle **faster-whisper** téléchargé. Son dossier doit contenir `model.bin` et ses fichiers associés ; un modèle Whisper `.pt` ne convient pas.
 
 Dans PowerShell à la racine du dépôt :
 
@@ -21,44 +30,45 @@ py -3.12 scripts/configure.py --model "C:\chemin\vers\faster-whisper-base"
 npm start
 ```
 
-L'installation initiale des dépendances nécessite Internet. Ensuite la dictée utilise les fichiers locaux : le moteur refuse les connexions réseau et la session Electron bloque HTTP, HTTPS et WebSocket. Le modèle n'est pas téléchargé automatiquement.
+L'installation initiale nécessite Internet. Ensuite la dictée utilise les fichiers locaux : le moteur refuse les connexions réseau et la session Electron bloque HTTP, HTTPS et WebSocket. Aucun modèle n'est téléchargé automatiquement par l'application.
 
-## Compilation du paquet Electron
+## Choix du modèle
+
+Le menu **Modèle** propose les modèles installés parmi Base, Large-v3 et Large-v3 Turbo. Les fichiers incomplets sont indisponibles. La dictée est désactivée pendant le changement. Un seul modèle est chargé à la fois et le choix est conservé dans `config.json`. Si le chargement échoue, le moteur tente de recharger le précédent.
+
+Pour télécharger les versions CTranslate2 avec le CLI Hugging Face :
+
+```powershell
+hf download Systran/faster-whisper-large-v3 --local-dir models/large-v3 --include model.bin config.json tokenizer.json vocabulary.json preprocessor_config.json
+hf download dropbox-dash/faster-whisper-large-v3-turbo --local-dir models/large-v3-turbo --include model.bin config.json tokenizer.json vocabulary.json preprocessor_config.json
+py -3.12 scripts/configure.py --model "C:\chemin\vers\base" --large models/large-v3 --turbo models/large-v3-turbo
+```
+
+Installer auparavant le CLI Hugging Face si nécessaire. Les poids FP16 représentent environ 3,09 Go pour Large-v3 et 1,62 Go pour Turbo. À l'exécution, le moteur utilise int8 sur CPU. La vitesse et la précision dépendent du matériel, de la langue et de l'audio ; le nom Turbo ne garantit pas une latence donnée sur chaque processeur.
+
+Sources : [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Large-v3 CTranslate2](https://huggingface.co/Systran/faster-whisper-large-v3), [Large-v3 Turbo CTranslate2](https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo).
+
+## Construction du paquet Electron
 
 ```powershell
 npm run check
 npm run build
 ```
 
-Le résultat est `dist/app.asar`, une archive d'application Electron. Ce n'est pas un installateur Windows autonome. Pour une distribution complète, il faut également un runtime Electron, Python, les dépendances et le modèle. En mode empaqueté, `worker.py`, `native_input.py`, `config.json` et `python-libs` sont attendus dans `resources/blabby-local` ; adapter les chemins du fichier de configuration à la machine cible.
+Le résultat est `dist/app.asar`, une archive Electron, pas un installateur autonome. Une distribution complète nécessite également Electron, Python, les dépendances et le modèle. En mode empaqueté, `worker.py`, `native_input.py`, `config.json` et `python-libs` sont attendus dans `resources/blabby-local`. Adapter les chemins de configuration à la machine cible.
 
-## Organisation
+## Organisation et état
 
-- `app/main.js` : fenêtres Electron, raccourci global, moteur et collage.
-- `app/renderer.js` : capture microphone, transcription et mesure du niveau audio.
+- `app/main.js` : fenêtres, raccourci global, modèles et insertion.
+- `app/renderer.js` : capture microphone et interface.
 - `app/preload.js` : pont IPC.
-- `app/overlay.*` : bandeau et visualiseur.
-- `worker.py` : transcription locale avec faster-whisper.
-- `native_input.py` : détection de la fenêtre active et collage Windows.
-- `scripts/` : configuration locale et construction de l'archive.
+- `app/overlay.*` : visualiseur du microphone.
+- `worker.py` : transcription et chargement des modèles locaux.
+- `native_input.py` : fenêtre active et insertion Unicode Windows.
+- `scripts/` : configuration et construction du paquet.
 
-## État et limites
+Le prototype ne reprend pas les modes IA, comptes, paiements ou synchronisation de l'ancien serveur. Les sources originales compilées et les binaires de l'application d'origine ne sont pas inclus. Modèles, dépendances installées, configurations personnelles, journaux et enregistrements sont exclus de Git.
 
-Le parcours Ctrl + Espace, transcription microphone et collage a été testé sur la version installée dans Bloc-notes et dans un champ de navigateur. Le bandeau, la réduction de la fenêtre et l'état de transcription ont été observés. La compatibilité avec tous les sites et les applications exécutées comme administrateur n'est pas garantie. Cette version reprend le prototype local ; les modes IA, comptes, paiements, synchronisation et fonctions de l'ancien serveur ne sont pas implémentés.
+Le parcours de dictée et l'insertion Unicode ont été testés dans Bloc-notes avec un audio synthétique fourni au microphone de test Chromium : texte avec accents inséré, presse-papiers inchangé. Le bandeau, son retrait immédiat et le fonctionnement après fermeture de la fenêtre principale ont aussi été observés. Cela ne garantit pas la précision sur une voix humaine ni la compatibilité avec tous les champs.
 
-Ce dépôt contient les sources du prototype local. Les binaires de l'application d'origine, modèles, bibliothèques installées, configurations personnelles, journaux et enregistrements sont exclus.
-
-Le bandeau se place en bas de l'écran où se trouve le pointeur, au-dessus de la barre des tâches. Fermer la fenêtre principale garde Blabby actif dans la zone de notification : double-cliquer son icône pour rouvrir, ou choisir Quitter Blabby dans son menu pour arrêter complètement. Une seule instance peut utiliser le raccourci à la fois.
-
-Le visualiseur actuel est une capsule minimaliste de 112 × 40 pixels contenant uniquement la vague. Elle apparaît pendant l'enregistrement et disparaît dès l'arrêt ; la transcription continue en arrière-plan. Affichage et disparition vérifiés sur l'exécutable installé.
-
-
-Le collage automatique est désactivé à la demande de l'utilisateur. Ctrl + Espace ne copie ni ne colle la transcription. Le bouton Copier le texte permet une copie volontaire.
-
-Après transcription, la fenêtre principale réapparaît pour rendre le résultat ou l'erreur visible. Aucun collage automatique ni écriture du presse-papiers n'est effectué.
-
-## Comportement actuel : insertion sans presse-papiers
-
-Ctrl + Espace insère la transcription dans le champ actif avec les événements Unicode Windows (SendInput), sans lire ni écrire le presse-papiers. Garder la même fenêtre et le même champ actifs jusqu'à la fin. En cas d'échec, Blabby affiche le résultat pour récupération manuelle. Les notes précédentes décrivent les étapes du prototype ; cette section définit le comportement actuel.
-
-Test : audio synthétique fourni au microphone de test Chromium, enregistrement et arrêt via le raccourci réel, texte avec accents inséré dans Bloc-notes. Empreinte du presse-papiers identique avant et après. Application relancée ensuite avec le vrai microphone. La compatibilité avec chaque champ de chaque site reste à vérifier.
+La validation des modèles et les temps observés sur un court audio synthétique sont détaillés dans [MODEL-VALIDATION.md](MODEL-VALIDATION.md).

@@ -6,6 +6,9 @@ const readline = require('node:readline');
 app.setPath('userData', path.join(app.getPath('appData'), 'blabby-local'));
 let win, worker, ready = false, busy = false, seq = 0, active;
 let errors = '';
+let modelConfig,currentModel='base';
+const modelLabels={base:'Whisper Base', 'large-v3':'Whisper Large-v3', 'large-v3-turbo':'Whisper Large-v3 Turbo'};
+function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels).filter(id=>modelConfig?.models?.[id]).map(id=>({id,label:modelLabels[id],available:fs.existsSync(path.join(modelConfig.models[id],'model.bin'))}))};}
 let bubbleTimer;
 let tray,quitting=false;
 const singleInstance=app.requestSingleInstanceLock();
@@ -13,7 +16,7 @@ if(!singleInstance)app.quit();
 let overlay, nativePython, externalTarget, recording = false, shortcutPending = false, shortcutAvailable = false, insertionInProgress = false;
 const assets = app.isPackaged ? path.join(process.resourcesPath, 'blabby-local') : path.join(__dirname, '..');
 const configPath = path.join(assets, 'config.json');
-function status(message) { if(win && !win.isDestroyed()) win.webContents.send('local-status', {ready,busy,message,shortcutAvailable}); }
+function status(message) { if(win && !win.isDestroyed()) win.webContents.send('local-status', {ready,busy,message,shortcutAvailable,...modelStatus()}); }
 function bubble(message, visible = true) {
   if(!overlay || overlay.isDestroyed())return;
   clearTimeout(bubbleTimer);
@@ -39,6 +42,7 @@ function native(action, target, text) {
 }
 function startWorker() {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
+  modelConfig=config;config.models ||= {base:config.model};currentModel=config.selectedModel||'base';
   nativePython=config.python;
   worker = spawn(config.python, ['-u', path.join(assets, 'worker.py'), configPath], {
     windowsHide:true, env:{...process.env, HF_HUB_OFFLINE:'1', HF_HUB_DISABLE_TELEMETRY:'1'}
@@ -46,11 +50,12 @@ function startWorker() {
   readline.createInterface({input:worker.stdout}).on('line', line=>{
     try {
       const msg=JSON.parse(line);
-      if(msg.ready){ready=true;status('Modèle prêt · fonctionnement local');
+      if(msg.ready){ready=true;currentModel=msg.model||currentModel;status('Modèle prêt · fonctionnement local');
         if(process.env.BLABBY_TEST_AUDIO){setTimeout(async()=>{try{const result=await transcribe(fs.readFileSync(process.env.BLABBY_TEST_AUDIO),'fr');fs.writeFileSync(path.join(app.getPath('userData'),'integration-test.json'),JSON.stringify(result));win.webContents.send('local-test-result',result);}catch(e){status(e.message);}},500);}return;}
       if(active && msg.id===active.id){const job=active;active=null;busy=false;clearTimeout(job.timer);
+        if(job.modelSwitch && !msg.error){currentModel=msg.model;modelConfig.selectedModel=currentModel;fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}
         if(msg.error) job.reject(new Error(msg.error)); else job.resolve(msg);
-        status(msg.error || 'Transcription terminée');}
+        status(msg.error || (job.modelSwitch?'Modèle prêt · fonctionnement local':'Transcription terminée'));}
     } catch(e) { status('Erreur de communication avec le moteur'); }
   });
   worker.stderr.on('data',d=>{ errors=(errors+d.toString()).slice(-4000); });
@@ -100,7 +105,18 @@ app.whenReady().then(async()=>{
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',event=>event.preventDefault());
   win.loadFile(path.join(__dirname,'index.html'));
-  ipcMain.handle('local-status',()=>({ready,busy,shortcutAvailable,message:ready?'Modèle prêt · fonctionnement local':'Chargement du modèle…'}));
+  ipcMain.handle('local-status',()=>({ready,busy,shortcutAvailable,...modelStatus(),message:ready?'Modèle prêt · fonctionnement local':'Chargement du modèle…'}));
+  ipcMain.handle('local-model',async(_,key)=>{
+    if(!ready||busy||recording||shortcutPending||insertionInProgress)throw new Error('Attendez la fin de la dictée ou du chargement.');
+    if(!modelConfig.models[key]||!fs.existsSync(path.join(modelConfig.models[key],'model.bin')))throw new Error('Modèle non installé');
+    busy=true;status('Chargement de '+modelLabels[key]+'…');
+    return new Promise((resolve,reject)=>{
+      const id=++seq;
+      const timer=setTimeout(()=>{if(active?.id===id){active=null;busy=false;ready=false;worker.kill();reject(new Error('Chargement interrompu après 5 minutes'));}},300000);
+      active={id,resolve,reject,timer,modelSwitch:true};
+      worker.stdin.write(JSON.stringify({id,action:'model',model:key})+'\n',error=>{if(error&&active?.id===id){clearTimeout(timer);active=null;busy=false;status(error.message);reject(error);}});
+    });
+  });
   ipcMain.on('local-recording-state',(_,value)=>{
     recording=Boolean(value.recording);shortcutPending=false;
     if(recording)bubble('Enregistrement · Ctrl + Espace pour arrêter');

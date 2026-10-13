@@ -11,8 +11,8 @@ async function startMeter(){
     meterTimer=setInterval(()=>{analyser.getByteTimeDomainData(samples);let sum=0;for(const sample of samples)sum+=((sample-128)/128)**2;localBlabby.audioLevel(Math.min(1,Math.sqrt(sum/samples.length)*5));},60);
   }catch(error){stopMeter();console.warn('Visualiseur indisponible',error.message);}
 }
-function refresh(){ $('record').disabled=!recording&&(!ready||busy);$('import').disabled=!ready||busy||recording;$('language').disabled=busy||recording;$('microphone').disabled=busy||recording; }
-function update(s){ready=s.ready;busy=s.busy;$('status').textContent=recording?'Enregistrement… Ctrl + Espace pour arrêter':s.message;if(s.shortcutAvailable===false)$('error').textContent='Ctrl + Espace est déjà utilisé. Fermez l’application qui utilise ce raccourci puis relancez Blabby.';refresh();}
+function refresh(){ model.disabled=!ready||busy||recording||starting; $('record').disabled=!recording&&(!ready||busy);$('import').disabled=!ready||busy||recording;$('language').disabled=busy||recording;$('microphone').disabled=busy||recording; }
+function update(s){if(s.models&&s.models.length){ model.replaceChildren(...s.models.map(item=>{const option=new Option(item.label,item.id);option.disabled=!item.available;return option;}));model.value=s.model;modelLabel.textContent=model.selectedOptions[0]?.textContent||s.model;}ready=s.ready;busy=s.busy;$('status').textContent=recording?'Enregistrement… Ctrl + Espace pour arrêter':s.message;if(s.shortcutAvailable===false)$('error').textContent='Ctrl + Espace est déjà utilisé. Fermez l’application qui utilise ce raccourci puis relancez Blabby.';refresh();}
 localBlabby.onStatus(update);localBlabby.status().then(update).catch(e=>$('error').textContent=e.message);
 localBlabby.onTestResult(result=>{$('text').value=result.text;$('details').textContent=`Test local · ${result.duration.toFixed(1)} s audio · ${result.elapsed.toFixed(1)} s calcul`;
   const entry=document.createElement('div');entry.className='entry';entry.textContent=result.text;$('history').prepend(entry);});
@@ -42,3 +42,5 @@ $('import').onclick=async()=>{console.log('Local import requested');try{const au
 $('copy').onclick=async()=>{await localBlabby.copy($('text').value);$('copy').textContent='Copié';setTimeout(()=>$('copy').textContent='Copier le texte',1500);};
 devices().catch(()=>{});
 console.log('Local controls ready');
+
+$('model').onchange=async()=>{const key=$('model').value;busy=true;refresh();$('error').textContent='';try{await localBlabby.selectModel(key);}catch(error){$('error').textContent=error.message;}finally{update(await localBlabby.status());}};
