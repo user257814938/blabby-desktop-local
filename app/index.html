@@ -1,0 +1,14 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; media-src 'self' blob:; img-src 'self' data:">
+<title>Blabby · Local</title><link rel="stylesheet" href="style.css"></head>
+<body><header><strong>🎙 Blabby <span>LOCAL</span></strong><p>Votre voix reste sur cet ordinateur.</p></header>
+<main><section class="status"><span class="dot"></span><span id="status">Chargement du modèle…</span><b>Sans compte · Sans crédits</b></section>
+<section class="controls"><label>Langue <select id="language"><option value="fr">Français</option><option value="">Détection automatique</option><option value="en">English</option><option value="ar">العربية</option><option value="es">Español</option><option value="de">Deutsch</option><option value="it">Italiano</option><option value="pt">Português</option></select></label>
+<label>Microphone <select id="microphone"><option value="">Microphone par défaut</option></select></label>
+<button id="record" disabled>Commencer la dictée</button><button id="import" disabled>Ouvrir un audio</button></section>
+<p class="hint">Ctrl + Espace : commencer / arrêter depuis votre champ de texte · Whisper base, calcul sur CPU</p>
+<p id="error" role="alert"></p><textarea id="text" placeholder="Votre transcription apparaîtra ici…" aria-label="Transcription"></textarea>
+<footer><span id="details">Aucune requête réseau · modèle déjà installé</span><button id="copy">Copier le texte</button></footer>
+<section><h2>Cette session</h2><div id="history"><p class="hint">Les textes ne sont pas conservés après fermeture.</p></div></section>
+<p class="hint">Cliquez dans un champ, appuyez sur Ctrl + Espace, dictez, puis appuyez à nouveau pour transcrire et coller. Gardez la même fenêtre active. Blabby doit rester ouvert ou réduit. Le texte est aussi placé dans le presse-papiers.</p>
+</main><script src="renderer.js"></script></body></html>

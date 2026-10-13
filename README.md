@@ -1,0 +1,49 @@
+# Blabby desktop local
+
+Prototype Windows de dictée locale : Electron, JavaScript et Python / faster-whisper. Aucun compte ni quota. Le modèle fonctionne sur CPU en int8.
+
+## Utilisation
+
+Laisser Blabby ouvert ou réduit, cliquer dans un champ acceptant le collage, puis **Ctrl + Espace** pour enregistrer et à nouveau pour transcrire et coller. Aucun appui sur Entrée n'est envoyé. Un bandeau indique l'enregistrement avec un voyant rouge et des barres suivant le niveau du microphone. Le texte dicté remplace le contenu du presse-papiers.
+
+La fenêtre principale se réduit si le raccourci est déclenché depuis Blabby. Si une autre fenêtre devient active pendant la dictée, le collage est refusé et le texte peut être copié depuis Blabby. Le micro peut capter les sons ambiants. L'historique dure uniquement pendant la session.
+
+## Lancement depuis les sources
+
+Prérequis : Windows 64 bits, Node.js 22.12 ou plus récent avec npm, Python 3.12 et un modèle **faster-whisper** déjà téléchargé. Le dossier du modèle doit contenir `model.bin` et ses fichiers associés ; un modèle Whisper `.pt` ne convient pas.
+
+Dans PowerShell à la racine du dépôt :
+
+```powershell
+npm ci
+py -3.12 -m pip install --target python-libs -r requirements.txt
+py -3.12 scripts/configure.py --model "C:\chemin\vers\faster-whisper-base"
+npm start
+```
+
+L'installation initiale des dépendances nécessite Internet. Ensuite la dictée utilise les fichiers locaux : le moteur refuse les connexions réseau et la session Electron bloque HTTP, HTTPS et WebSocket. Le modèle n'est pas téléchargé automatiquement.
+
+## Compilation du paquet Electron
+
+```powershell
+npm run check
+npm run build
+```
+
+Le résultat est `dist/app.asar`, une archive d'application Electron. Ce n'est pas un installateur Windows autonome. Pour une distribution complète, il faut également un runtime Electron, Python, les dépendances et le modèle. En mode empaqueté, `worker.py`, `native_input.py`, `config.json` et `python-libs` sont attendus dans `resources/blabby-local` ; adapter les chemins du fichier de configuration à la machine cible.
+
+## Organisation
+
+- `app/main.js` : fenêtres Electron, raccourci global, moteur et collage.
+- `app/renderer.js` : capture microphone, transcription et mesure du niveau audio.
+- `app/preload.js` : pont IPC.
+- `app/overlay.*` : bandeau et visualiseur.
+- `worker.py` : transcription locale avec faster-whisper.
+- `native_input.py` : détection de la fenêtre active et collage Windows.
+- `scripts/` : configuration locale et construction de l'archive.
+
+## État et limites
+
+Le parcours Ctrl + Espace, transcription microphone et collage a été testé sur la version installée dans Bloc-notes et dans un champ de navigateur. Le bandeau, la réduction de la fenêtre et l'état de transcription ont été observés. La compatibilité avec tous les sites et les applications exécutées comme administrateur n'est pas garantie. Cette version reprend le prototype local ; les modes IA, comptes, paiements, synchronisation et fonctions de l'ancien serveur ne sont pas implémentés.
+
+Ce dépôt contient les sources du prototype local. Les binaires de l'application d'origine, modèles, bibliothèques installées, configurations personnelles, journaux et enregistrements sont exclus.

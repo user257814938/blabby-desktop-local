@@ -1,0 +1,5 @@
+{
+  "python": "C:/path/to/python.exe",
+  "libraries": "C:/path/to/blabby-desktop-local/python-libs",
+  "model": "C:/path/to/local/faster-whisper-base"
+}

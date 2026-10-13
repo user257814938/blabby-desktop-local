@@ -1,0 +1,13 @@
+{
+  "name": "blabby-desktop-local",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Dictée locale Windows avec Whisper et Ctrl + Espace",
+  "main": "app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check app/main.js && node --check app/preload.js && node --check app/renderer.js && node --check app/overlay.js",
+    "build": "node scripts/build.cjs"
+  },
+  "devDependencies": {"electron": "44.7.0", "@electron/asar": "4.2.0"}
+}

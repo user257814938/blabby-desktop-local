@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+python-libs/
+models/
+dist/
+config.json
+__pycache__/
+*.pyc
+*.log
+.env*
+*.wav
+*.webm
+*.mp3
+*.asar
