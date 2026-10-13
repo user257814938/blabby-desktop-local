@@ -26,7 +26,7 @@ function bubble(message, visible = true) {
     overlay.showInactive();
   }else overlay.hide();
 }
-function native(action, target) {
+function native(action, target, text) {
   return new Promise((resolve,reject)=>{
     const helper=spawn(nativePython,['-u',path.join(assets,'native_input.py')],{windowsHide:true});
     let output='';const timer=setTimeout(()=>{helper.kill();reject(new Error('Intégration Windows indisponible'));},5000);
@@ -34,7 +34,7 @@ function native(action, target) {
     helper.on('error',error=>{clearTimeout(timer);reject(error);});
     helper.on('exit',()=>{clearTimeout(timer);try{const result=JSON.parse(output);if(result.error)reject(new Error(result.error));else resolve(result);}catch(error){reject(new Error('Intégration Windows indisponible'));}});
     helper.stdin.on('error',()=>{});
-    helper.stdin.end(JSON.stringify({action,target}));
+    helper.stdin.end(JSON.stringify({action,target,text}));
   });
 }
 function startWorker() {
@@ -110,12 +110,22 @@ app.whenReady().then(async()=>{
     if(event.sender!==win.webContents || !recording || !Number.isFinite(value))return;
     if(overlay&&!overlay.isDestroyed())overlay.webContents.send('local-audio-level',Math.max(0,Math.min(1,value)));
   });
-  ipcMain.handle('local-transcribe',async(_,buffer,lang)=>{
-    externalTarget=null;
-    try{return await transcribe(buffer,lang);}
+  ipcMain.handle('local-transcribe',async(_,buffer,lang,insert)=>{
+    const target=insert?externalTarget:null;externalTarget=null;
+    insertionInProgress=true;
+    let inserted=false;
+    try{
+      const result=await transcribe(buffer,lang);
+      if(target && result.text){
+        try{await native('type',target,result.text);result.inserted=true;inserted=true;}
+        catch(error){result.insertionError=error.message;}
+      }
+      return result;
+    }
     finally{
+      insertionInProgress=false;
       bubble('',false);
-      if(win&&!win.isDestroyed()){
+      if(!inserted && win&&!win.isDestroyed()){
         if(win.isMinimized())win.restore();
         win.showInactive();
       }
@@ -132,9 +142,9 @@ app.whenReady().then(async()=>{
     if(!ready||busy||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
     shortcutPending=true;
     try{
-      externalTarget=null;
+      if(!recording){const result=await native('capture');externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;}
       if(!recording && !externalTarget && win.isFocused())win.minimize();
-      win.webContents.send('local-toggle-recording',{external:false});
+      win.webContents.send('local-toggle-recording',{external:Boolean(externalTarget)});
     }catch(error){shortcutPending=false;status(error.message);}
   });
   startWorker();

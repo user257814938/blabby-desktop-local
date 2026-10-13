@@ -57,7 +57,7 @@ def run(request):
     check(target)
     if action == "check":
         return {"ok": True}
-    if action != "paste":
+    if action != "type":
         raise ValueError("Action inconnue")
     deadline = time.monotonic() + 1.5
     while any(user32.GetAsyncKeyState(key) & 0x8000 for key in (0x10, 0x11, 0x12, 0x5B, 0x5C)):
@@ -65,19 +65,23 @@ def run(request):
             raise ValueError("Relâchez les touches du clavier, puis copiez le texte depuis Blabby.")
         time.sleep(0.02)
     check(target)
-    events = (Input * 4)()
-    for event, (key, flags) in zip(events, [(0x11, 0), (0x56, 0), (0x56, 2), (0x11, 2)]):
-        event.type = 1
-        event.data.keyboard = Keyboard(key, 0, flags, 0, 0)
-    count = user32.SendInput(4, events, ctypes.sizeof(Input))
-    if count != 4:
-        # Release our injected keys even if Windows refused some events.
-        release = (Input * 2)()
-        for event, key in zip(release, (0x56, 0x11)):
-            event.type = 1
-            event.data.keyboard = Keyboard(key, 0, 2, 0, 0)
-        user32.SendInput(2, release, ctypes.sizeof(Input))
-        raise ValueError("Windows a refusé le collage. Copiez le texte depuis Blabby.")
+    text = request.get("text")
+    if not isinstance(text, str) or len(text) > 100000:
+        raise ValueError("Texte invalide")
+    encoded = text.encode("utf-16-le")
+    units = [int.from_bytes(encoded[i:i+2], "little") for i in range(0, len(encoded), 2)]
+    for offset in range(0, len(units), 128):
+        check(target)
+        chunk = units[offset:offset+128]
+        events = (Input * (len(chunk)*2))()
+        for index, unit in enumerate(chunk):
+            for release in (0, 1):
+                event = events[index*2+release]
+                event.type = 1
+                event.data.keyboard = Keyboard(0, unit, 4 | (2 if release else 0), 0, 0)
+        count = user32.SendInput(len(events), events, ctypes.sizeof(Input))
+        if count != len(events):
+            raise ValueError("Insertion interrompue par Windows. Le texte reste dans Blabby ; une partie peut déjà être insérée.")
     return {"ok": True}
 
 
@@ -87,3 +91,4 @@ if __name__ == "__main__":
     except Exception as error:
         result = {"error": str(error)}
     print(json.dumps(result, ensure_ascii=True), flush=True)
+

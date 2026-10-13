@@ -56,3 +56,9 @@ Le visualiseur actuel est une capsule minimaliste de 112 × 40 pixels contenant 
 Le collage automatique est désactivé à la demande de l'utilisateur. Ctrl + Espace ne copie ni ne colle la transcription. Le bouton Copier le texte permet une copie volontaire.
 
 Après transcription, la fenêtre principale réapparaît pour rendre le résultat ou l'erreur visible. Aucun collage automatique ni écriture du presse-papiers n'est effectué.
+
+## Comportement actuel : insertion sans presse-papiers
+
+Ctrl + Espace insère la transcription dans le champ actif avec les événements Unicode Windows (SendInput), sans lire ni écrire le presse-papiers. Garder la même fenêtre et le même champ actifs jusqu'à la fin. En cas d'échec, Blabby affiche le résultat pour récupération manuelle. Les notes précédentes décrivent les étapes du prototype ; cette section définit le comportement actuel.
+
+Test : audio synthétique fourni au microphone de test Chromium, enregistrement et arrêt via le raccourci réel, texte avec accents inséré dans Bloc-notes. Empreinte du presse-papiers identique avant et après. Application relancée ensuite avec le vrai microphone. La compatibilité avec chaque champ de chaque site reste à vérifier.
