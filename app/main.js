@@ -110,19 +110,10 @@ app.whenReady().then(async()=>{
     if(event.sender!==win.webContents || !recording || !Number.isFinite(value))return;
     if(overlay&&!overlay.isDestroyed())overlay.webContents.send('local-audio-level',Math.max(0,Math.min(1,value)));
   });
-  ipcMain.handle('local-transcribe',async(_,buffer,lang,insert)=>{
-    const target=insert?externalTarget:null;externalTarget=null;
-    insertionInProgress=Boolean(target);
-    bubble('Transcription locale…');
-    try {
-      const result=await transcribe(buffer,lang);
-      if(target && result.text){
-        try{await native('check',target);clipboard.writeText(result.text);await native('paste',target);result.inserted=true;bubble('Texte collé · Ctrl + Espace pour dicter');}
-        catch(error){result.insertionError=error.message;bubble('Texte prêt · ouvrez Blabby pour le copier');}
-      }else{bubble(result.text?'Texte prêt dans Blabby':'Aucune parole reconnue');}
-      bubbleTimer=setTimeout(()=>{if(!recording&&!busy&&!shortcutPending)bubble('',false);},2500);
-      return result;
-    }catch(error){bubble('',false);throw error;}finally{insertionInProgress=false;}
+  ipcMain.handle('local-transcribe',async(_,buffer,lang)=>{
+    externalTarget=null;
+    try{return await transcribe(buffer,lang);}
+    finally{bubble('',false);}
   });
   ipcMain.handle('local-copy',(_,text)=>{if(typeof text!=='string')throw new Error('Texte invalide');clipboard.writeText(text);return true;});
   ipcMain.handle('local-import',async()=>{
@@ -135,14 +126,15 @@ app.whenReady().then(async()=>{
     if(!ready||busy||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
     shortcutPending=true;
     try{
-      if(!recording){const result=await native('capture');externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;}
+      externalTarget=null;
       if(!recording && !externalTarget && win.isFocused())win.minimize();
-      win.webContents.send('local-toggle-recording',{external:Boolean(externalTarget)});
+      win.webContents.send('local-toggle-recording',{external:false});
     }catch(error){shortcutPending=false;status(error.message);}
   });
   startWorker();
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();tray?.destroy();});
+
 
 

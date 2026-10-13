@@ -4,9 +4,9 @@ Prototype Windows de dictée locale : Electron, JavaScript et Python / faster-wh
 
 ## Utilisation
 
-Laisser Blabby ouvert ou réduit, cliquer dans un champ acceptant le collage, puis **Ctrl + Espace** pour enregistrer et à nouveau pour transcrire et coller. Aucun appui sur Entrée n'est envoyé. Un bandeau indique l'enregistrement avec un voyant rouge et des barres suivant le niveau du microphone. Le texte dicté remplace le contenu du presse-papiers.
+Laisser Blabby ouvert ou réduit, cliquer dans un champ acceptant le collage, puis **Ctrl + Espace** pour enregistrer et à nouveau pour transcrire. Aucun appui sur Entrée n'est envoyé. Un bandeau indique l'enregistrement avec un voyant rouge et des barres suivant le niveau du microphone. La transcription reste dans Blabby ; seul le bouton Copier le texte modifie le presse-papiers.
 
-La fenêtre principale se réduit si le raccourci est déclenché depuis Blabby. Si une autre fenêtre devient active pendant la dictée, le collage est refusé et le texte peut être copié depuis Blabby. Le micro peut capter les sons ambiants. L'historique dure uniquement pendant la session.
+La fenêtre principale se réduit si le raccourci est déclenché depuis Blabby. Aucun collage automatique dans une autre application. Le micro peut capter les sons ambiants. L'historique dure uniquement pendant la session.
 
 ## Lancement depuis les sources
 
@@ -50,4 +50,7 @@ Ce dépôt contient les sources du prototype local. Les binaires de l'applicatio
 
 Le bandeau se place en bas de l'écran où se trouve le pointeur, au-dessus de la barre des tâches. Fermer la fenêtre principale garde Blabby actif dans la zone de notification : double-cliquer son icône pour rouvrir, ou choisir Quitter Blabby dans son menu pour arrêter complètement. Une seule instance peut utiliser le raccourci à la fois.
 
-Le visualiseur actuel est une capsule minimaliste de 112 × 40 pixels contenant uniquement la vague. Elle apparaît pendant l'enregistrement et disparaît dès l'arrêt ; la transcription et le collage continuent en arrière-plan. Affichage et disparition vérifiés sur l'exécutable installé.
+Le visualiseur actuel est une capsule minimaliste de 112 × 40 pixels contenant uniquement la vague. Elle apparaît pendant l'enregistrement et disparaît dès l'arrêt ; la transcription continue en arrière-plan. Affichage et disparition vérifiés sur l'exécutable installé.
+
+
+Le collage automatique est désactivé à la demande de l'utilisateur. Ctrl + Espace ne copie ni ne colle la transcription. Le bouton Copier le texte permet une copie volontaire.
