@@ -11,6 +11,7 @@ const modelLabels={base:'Whisper Base', 'large-v3':'Whisper Large-v3', 'large-v3
 function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels).filter(id=>modelConfig?.models?.[id]).map(id=>({id,label:modelLabels[id],available:fs.existsSync(path.join(modelConfig.models[id],'model.bin'))}))};}
 let bubbleTimer;
 let tray,quitting=false;
+let shortcutRecording=false;
 const singleInstance=app.requestSingleInstanceLock();
 if(!singleInstance)app.quit();
 let overlay, nativePython, externalTarget, recording = false, shortcutPending = false, shortcutAvailable = false, insertionInProgress = false;
@@ -120,14 +121,15 @@ app.whenReady().then(async()=>{
   ipcMain.on('local-recording-state',(_,value)=>{
     recording=Boolean(value.recording);shortcutPending=false;
     if(recording)bubble('Enregistrement · Ctrl + Espace pour arrêter');
-    if(!recording){if(value.failed)externalTarget=null;bubble('',false);}
+    if(!recording){if(value.failed){externalTarget=null;shortcutRecording=false;}bubble('',false);}
   });
   ipcMain.on('local-audio-level',(event,value)=>{
     if(event.sender!==win.webContents || !recording || !Number.isFinite(value))return;
     if(overlay&&!overlay.isDestroyed())overlay.webContents.send('local-audio-level',Math.max(0,Math.min(1,value)));
   });
   ipcMain.handle('local-transcribe',async(_,buffer,lang,insert)=>{
-    const target=insert?externalTarget:null;externalTarget=null;
+    const fromShortcut=shortcutRecording;
+    const target=fromShortcut?externalTarget:null;externalTarget=null;shortcutRecording=false;
     insertionInProgress=true;
     let inserted=false;
     try{
@@ -141,7 +143,7 @@ app.whenReady().then(async()=>{
     finally{
       insertionInProgress=false;
       bubble('',false);
-      if(!inserted && win&&!win.isDestroyed()){
+      if(!inserted && !target && win&&!win.isDestroyed()){
         if(win.isMinimized())win.restore();
         win.showInactive();
       }
@@ -158,7 +160,10 @@ app.whenReady().then(async()=>{
     if(!ready||busy||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
     shortcutPending=true;
     try{
-      if(!recording){const result=await native('capture');externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;}
+      if(!recording || (shortcutRecording&&!externalTarget)){
+        const result=await native('capture');externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;
+      }
+      if(!recording)shortcutRecording=true;
       if(!recording && !externalTarget && win.isFocused())win.minimize();
       win.webContents.send('local-toggle-recording',{external:Boolean(externalTarget)});
     }catch(error){shortcutPending=false;status(error.message);}

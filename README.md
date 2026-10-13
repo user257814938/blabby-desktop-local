@@ -72,3 +72,5 @@ Le prototype ne reprend pas les modes IA, comptes, paiements ou synchronisation 
 Le parcours de dictée et l'insertion Unicode ont été testés dans Bloc-notes avec un audio synthétique fourni au microphone de test Chromium : texte avec accents inséré, presse-papiers inchangé. Le bandeau, son retrait immédiat et le fonctionnement après fermeture de la fenêtre principale ont aussi été observés. Cela ne garantit pas la précision sur une voix humaine ni la compatibilité avec tous les champs.
 
 La validation des modèles et les temps observés sur un court audio synthétique sont détaillés dans [MODEL-VALIDATION.md](MODEL-VALIDATION.md).
+
+Si Ctrl + Espace est lancé depuis Blabby, sélectionner ensuite le champ de destination et arrêter la dictée depuis ce champ. La destination est alors capturée à l'arrêt. Depuis une autre application, la destination reste celle capturée au démarrage. Une erreur d'insertion externe ne rouvre plus automatiquement Blabby au premier plan.
