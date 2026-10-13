@@ -54,3 +54,5 @@ Le visualiseur actuel est une capsule minimaliste de 112 × 40 pixels contenant 
 
 
 Le collage automatique est désactivé à la demande de l'utilisateur. Ctrl + Espace ne copie ni ne colle la transcription. Le bouton Copier le texte permet une copie volontaire.
+
+Après transcription, la fenêtre principale réapparaît pour rendre le résultat ou l'erreur visible. Aucun collage automatique ni écriture du presse-papiers n'est effectué.

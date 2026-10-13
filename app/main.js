@@ -113,7 +113,13 @@ app.whenReady().then(async()=>{
   ipcMain.handle('local-transcribe',async(_,buffer,lang)=>{
     externalTarget=null;
     try{return await transcribe(buffer,lang);}
-    finally{bubble('',false);}
+    finally{
+      bubble('',false);
+      if(win&&!win.isDestroyed()){
+        if(win.isMinimized())win.restore();
+        win.showInactive();
+      }
+    }
   });
   ipcMain.handle('local-copy',(_,text)=>{if(typeof text!=='string')throw new Error('Texte invalide');clipboard.writeText(text);return true;});
   ipcMain.handle('local-import',async()=>{
