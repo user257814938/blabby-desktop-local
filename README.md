@@ -47,3 +47,5 @@ Le résultat est `dist/app.asar`, une archive d'application Electron. Ce n'est p
 Le parcours Ctrl + Espace, transcription microphone et collage a été testé sur la version installée dans Bloc-notes et dans un champ de navigateur. Le bandeau, la réduction de la fenêtre et l'état de transcription ont été observés. La compatibilité avec tous les sites et les applications exécutées comme administrateur n'est pas garantie. Cette version reprend le prototype local ; les modes IA, comptes, paiements, synchronisation et fonctions de l'ancien serveur ne sont pas implémentés.
 
 Ce dépôt contient les sources du prototype local. Les binaires de l'application d'origine, modèles, bibliothèques installées, configurations personnelles, journaux et enregistrements sont exclus.
+
+Le bandeau se place en bas de l'écran où se trouve le pointeur, au-dessus de la barre des tâches. Fermer la fenêtre principale garde Blabby actif dans la zone de notification : double-cliquer son icône pour rouvrir, ou choisir Quitter Blabby dans son menu pour arrêter complètement. Une seule instance peut utiliser le raccourci à la fois.

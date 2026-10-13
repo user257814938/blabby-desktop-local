@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, dialog, globalShortcut, session, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, dialog, globalShortcut, session, screen, Tray, Menu } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,14 +6,25 @@ const readline = require('node:readline');
 app.setPath('userData', path.join(app.getPath('appData'), 'blabby-local'));
 let win, worker, ready = false, busy = false, seq = 0, active;
 let errors = '';
+let bubbleTimer;
+let tray,quitting=false;
+const singleInstance=app.requestSingleInstanceLock();
+if(!singleInstance)app.quit();
 let overlay, nativePython, externalTarget, recording = false, shortcutPending = false, shortcutAvailable = false, insertionInProgress = false;
 const assets = app.isPackaged ? path.join(process.resourcesPath, 'blabby-local') : path.join(__dirname, '..');
 const configPath = path.join(assets, 'config.json');
 function status(message) { if(win && !win.isDestroyed()) win.webContents.send('local-status', {ready,busy,message,shortcutAvailable}); }
 function bubble(message, visible = true) {
   if(!overlay || overlay.isDestroyed())return;
+  clearTimeout(bubbleTimer);
   overlay.webContents.send('local-status', {message,recording});
-  if(visible)overlay.showInactive();else overlay.hide();
+  if(visible){
+    const area=screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    overlay.setPosition(area.x+Math.round((area.width-360)/2),area.y+area.height-76-16);
+    if(overlay.isMinimized())overlay.restore();
+    overlay.setAlwaysOnTop(true,'screen-saver');
+    overlay.showInactive();
+  }else overlay.hide();
 }
 function native(action, target) {
   return new Promise((resolve,reject)=>{
@@ -59,20 +70,30 @@ function transcribe(buffer, language) {
     worker.stdin.write(JSON.stringify({id,audio:Buffer.from(buffer).toString('base64'),language})+'\n',e=>{if(e && active?.id===id){clearTimeout(timer);active=null;busy=false;reject(e);}});
   });
 }
-app.whenReady().then(()=>{
+app.on('second-instance',()=>{if(win&&!win.isDestroyed()){win.show();win.focus();}});
+app.whenReady().then(async()=>{
+  if(!singleInstance)return;
   // A separate, network-denied Electron session; no remote API, login or telemetry.
   const localSession=session.fromPartition('blabby-local-memory');
   localSession.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*','ws://*/*','wss://*/*']},(details,callback)=>callback({cancel:true}));
   win=new BrowserWindow({width:1000,height:760,minWidth:750,minHeight:600,title:'Blabby · Local',backgroundColor:'#14161b',
     webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,session:localSession}});
   const area=screen.getPrimaryDisplay().workArea;
-  overlay=new BrowserWindow({width:360,height:76,x:area.x+Math.round((area.width-360)/2),y:area.y+16,
+  overlay=new BrowserWindow({width:360,height:76,x:area.x+Math.round((area.width-360)/2),y:area.y+area.height-76-16,
     show:false,frame:false,resizable:false,focusable:false,alwaysOnTop:true,skipTaskbar:true,
     backgroundColor:'#14161b',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,session:localSession}});
   overlay.loadFile(path.join(__dirname,'overlay.html'));
   overlay.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   overlay.webContents.on('will-navigate',event=>event.preventDefault());
   win.on('closed',()=>{if(overlay&&!overlay.isDestroyed())overlay.close();});
+  tray=new Tray(await app.getFileIcon(process.execPath));
+  tray.setToolTip('Blabby local · Ctrl + Espace pour dicter');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {label:'Ouvrir Blabby',click:()=>{win.show();win.focus();}},
+    {label:'Quitter Blabby',click:()=>app.quit()}
+  ]));
+  tray.on('double-click',()=>{win.show();win.focus();});
+  win.on('close',event=>{if(!quitting){event.preventDefault();win.hide();}});
   win.setMenuBarVisibility(false);
   win.once('ready-to-show',()=>win.show());
   win.webContents.on('console-message',(event,level,message)=>{fs.appendFileSync(path.join(app.getPath('userData'),'renderer.log'),String(event.message ?? message ?? level)+'\n');});
@@ -99,7 +120,7 @@ app.whenReady().then(()=>{
         try{await native('check',target);clipboard.writeText(result.text);await native('paste',target);result.inserted=true;bubble('Texte collé · Ctrl + Espace pour dicter');}
         catch(error){result.insertionError=error.message;bubble('Texte prêt · ouvrez Blabby pour le copier');}
       }else{bubble(result.text?'Texte prêt dans Blabby':'Aucune parole reconnue');}
-      setTimeout(()=>{if(!recording&&!busy)bubble('',false);},2500);
+      bubbleTimer=setTimeout(()=>{if(!recording&&!busy&&!shortcutPending)bubble('',false);},2500);
       return result;
     }catch(error){bubble('',false);throw error;}finally{insertionInProgress=false;}
   });
@@ -122,5 +143,5 @@ app.whenReady().then(()=>{
   startWorker();
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',()=>{globalShortcut.unregisterAll();worker?.kill();});
+app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();tray?.destroy();});
 
