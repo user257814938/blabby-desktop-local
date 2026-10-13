@@ -18,9 +18,9 @@ function bubble(message, visible = true) {
   if(!overlay || overlay.isDestroyed())return;
   clearTimeout(bubbleTimer);
   overlay.webContents.send('local-status', {message,recording});
-  if(visible){
+  if(visible && recording){
     const area=screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
-    overlay.setPosition(area.x+Math.round((area.width-360)/2),area.y+area.height-76-16);
+    overlay.setPosition(area.x+Math.round((area.width-112)/2),area.y+area.height-40-16);
     if(overlay.isMinimized())overlay.restore();
     overlay.setAlwaysOnTop(true,'screen-saver');
     overlay.showInactive();
@@ -79,7 +79,7 @@ app.whenReady().then(async()=>{
   win=new BrowserWindow({width:1000,height:760,minWidth:750,minHeight:600,title:'Blabby · Local',backgroundColor:'#14161b',
     webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,session:localSession}});
   const area=screen.getPrimaryDisplay().workArea;
-  overlay=new BrowserWindow({width:360,height:76,x:area.x+Math.round((area.width-360)/2),y:area.y+area.height-76-16,
+  overlay=new BrowserWindow({width:112,height:40,x:area.x+Math.round((area.width-112)/2),y:area.y+area.height-40-16,
     show:false,frame:false,resizable:false,focusable:false,alwaysOnTop:true,skipTaskbar:true,
     backgroundColor:'#14161b',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,session:localSession}});
   overlay.loadFile(path.join(__dirname,'overlay.html'));
@@ -104,7 +104,7 @@ app.whenReady().then(async()=>{
   ipcMain.on('local-recording-state',(_,value)=>{
     recording=Boolean(value.recording);shortcutPending=false;
     if(recording)bubble('Enregistrement · Ctrl + Espace pour arrêter');
-    if(!recording && value.failed){externalTarget=null;bubble('',false);}
+    if(!recording){if(value.failed)externalTarget=null;bubble('',false);}
   });
   ipcMain.on('local-audio-level',(event,value)=>{
     if(event.sender!==win.webContents || !recording || !Number.isFinite(value))return;
@@ -144,4 +144,5 @@ app.whenReady().then(async()=>{
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();tray?.destroy();});
+
 

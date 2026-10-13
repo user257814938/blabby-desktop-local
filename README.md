@@ -49,3 +49,5 @@ Le parcours Ctrl + Espace, transcription microphone et collage a été testé su
 Ce dépôt contient les sources du prototype local. Les binaires de l'application d'origine, modèles, bibliothèques installées, configurations personnelles, journaux et enregistrements sont exclus.
 
 Le bandeau se place en bas de l'écran où se trouve le pointeur, au-dessus de la barre des tâches. Fermer la fenêtre principale garde Blabby actif dans la zone de notification : double-cliquer son icône pour rouvrir, ou choisir Quitter Blabby dans son menu pour arrêter complètement. Une seule instance peut utiliser le raccourci à la fois.
+
+Le visualiseur actuel est une capsule minimaliste de 112 × 40 pixels contenant uniquement la vague. Elle apparaît pendant l'enregistrement et disparaît dès l'arrêt ; la transcription et le collage continuent en arrière-plan. Affichage et disparition vérifiés sur l'exécutable installé.
