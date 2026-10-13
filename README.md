@@ -11,7 +11,7 @@ Prototype Windows de dictée locale avec Electron, JavaScript et Python / faster
 
 L'insertion utilise les événements Unicode Windows : elle ne lit ni ne modifie le presse-papiers et n'envoie pas Entrée. Garder le même champ et la même fenêtre actifs jusqu'à la fin. En cas d'échec, Blabby affiche la transcription pour récupération manuelle. Certains champs ou applications exécutées comme administrateur peuvent refuser l'insertion.
 
-Pendant l'enregistrement, une petite vague réagissant au microphone apparaît en bas de l'écran du pointeur, au-dessus de la barre des tâches. Elle disparaît dès l'arrêt. La transcription continue en arrière-plan. Le micro peut capter les sons ambiants.
+Pendant l'enregistrement, une petite vague réagissant au microphone apparaît en bas de l'écran du pointeur, au-dessus de la barre des tâches. Après l'arrêt du micro, elle passe en animation bleue de chargement pendant la transcription et l'insertion. Elle disparaît à la fin de l'opération, ou en cas d'erreur. Le micro peut capter les sons ambiants.
 
 Fermer la fenêtre laisse Blabby actif dans la zone de notification. Double-cliquer l'icône pour rouvrir ; choisir **Quitter Blabby** dans son menu pour arrêter complètement. Une seule instance utilise le raccourci.
 
@@ -74,3 +74,4 @@ Le parcours de dictée et l'insertion Unicode ont été testés dans Bloc-notes 
 La validation des modèles et les temps observés sur un court audio synthétique sont détaillés dans [MODEL-VALIDATION.md](MODEL-VALIDATION.md).
 
 Si Ctrl + Espace est lancé depuis Blabby, sélectionner ensuite le champ de destination et arrêter la dictée depuis ce champ. La destination est alors capturée à l'arrêt. Depuis une autre application, la destination reste celle capturée au démarrage. Une erreur d'insertion externe ne rouvre plus automatiquement Blabby au premier plan.
+

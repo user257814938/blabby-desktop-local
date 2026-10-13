@@ -12,6 +12,7 @@ function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels
 let bubbleTimer;
 let tray,quitting=false;
 let shortcutRecording=false;
+let processing=false;
 const singleInstance=app.requestSingleInstanceLock();
 if(!singleInstance)app.quit();
 let overlay, nativePython, externalTarget, recording = false, shortcutPending = false, shortcutAvailable = false, insertionInProgress = false;
@@ -21,8 +22,8 @@ function status(message) { if(win && !win.isDestroyed()) win.webContents.send('l
 function bubble(message, visible = true) {
   if(!overlay || overlay.isDestroyed())return;
   clearTimeout(bubbleTimer);
-  overlay.webContents.send('local-status', {message,recording});
-  if(visible && recording){
+  overlay.webContents.send('local-status', {message,recording,processing});
+  if(visible && (recording||processing)){
     const area=screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
     overlay.setPosition(area.x+Math.round((area.width-112)/2),area.y+area.height-40-16);
     if(overlay.isMinimized())overlay.restore();
@@ -108,7 +109,7 @@ app.whenReady().then(async()=>{
   win.loadFile(path.join(__dirname,'index.html'));
   ipcMain.handle('local-status',()=>({ready,busy,shortcutAvailable,...modelStatus(),message:ready?'Modèle prêt · fonctionnement local':'Chargement du modèle…'}));
   ipcMain.handle('local-model',async(_,key)=>{
-    if(!ready||busy||recording||shortcutPending||insertionInProgress)throw new Error('Attendez la fin de la dictée ou du chargement.');
+    if(!ready||busy||recording||processing||shortcutPending||insertionInProgress)throw new Error('Attendez la fin de la dictée ou du chargement.');
     if(!modelConfig.models[key]||!fs.existsSync(path.join(modelConfig.models[key],'model.bin')))throw new Error('Modèle non installé');
     busy=true;status('Chargement de '+modelLabels[key]+'…');
     return new Promise((resolve,reject)=>{
@@ -120,8 +121,12 @@ app.whenReady().then(async()=>{
   });
   ipcMain.on('local-recording-state',(_,value)=>{
     recording=Boolean(value.recording);shortcutPending=false;
-    if(recording)bubble('Enregistrement · Ctrl + Espace pour arrêter');
-    if(!recording){if(value.failed){externalTarget=null;shortcutRecording=false;}bubble('',false);}
+    if(recording){processing=false;bubble('Enregistrement · Ctrl + Espace pour arrêter');}
+    if(!recording){
+      processing=!value.failed;
+      if(value.failed){externalTarget=null;shortcutRecording=false;}
+      bubble(processing?'Transcription en cours…':'',processing);
+    }
   });
   ipcMain.on('local-audio-level',(event,value)=>{
     if(event.sender!==win.webContents || !recording || !Number.isFinite(value))return;
@@ -131,6 +136,7 @@ app.whenReady().then(async()=>{
     const fromShortcut=shortcutRecording;
     const target=fromShortcut?externalTarget:null;externalTarget=null;shortcutRecording=false;
     insertionInProgress=true;
+      processing=true;bubble('Transcription en cours…');
     let inserted=false;
     try{
       const result=await transcribe(buffer,lang);
@@ -141,7 +147,7 @@ app.whenReady().then(async()=>{
       return result;
     }
     finally{
-      insertionInProgress=false;
+      insertionInProgress=false;processing=false;
       bubble('',false);
       if(!inserted && !target && win&&!win.isDestroyed()){
         if(win.isMinimized())win.restore();
@@ -157,7 +163,7 @@ app.whenReady().then(async()=>{
     return {name:path.basename(p),buffer:fs.readFileSync(p)};
   });
   shortcutAvailable=globalShortcut.register('Control+Space',async()=>{
-    if(!ready||busy||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
+    if(!ready||busy||processing||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
     shortcutPending=true;
     try{
       if(!recording || (shortcutRecording&&!externalTarget)){

@@ -32,7 +32,7 @@ async function toggle(options={}){if(recording){if(recorder.state==='recording')
   try{$('error').textContent='';const device=$('microphone').value;stream=await navigator.mediaDevices.getUserMedia({audio:device?{deviceId:{exact:device}}:true});await devices();
     const mime=['audio/webm;codecs=opus','audio/webm'].find(m=>MediaRecorder.isTypeSupported(m));recorder=new MediaRecorder(stream,mime?{mimeType:mime}:{});chunks=[];
     recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-    recorder.onstop=async()=>{recording=false;stopMeter();localBlabby.recordingState({recording:false});stream.getTracks().forEach(t=>t.stop());$('record').textContent='Commencer la dictée';$('record').classList.remove('recording');const blob=new Blob(chunks,{type:recorder.mimeType});busy=true;refresh();await run(await blob.arrayBuffer(),'Dictée',autoInsert);};
+    recorder.onstop=async()=>{recording=false;stopMeter();localBlabby.recordingState({recording:false});stream.getTracks().forEach(t=>t.stop());$('record').textContent='Commencer la dictée';$('record').classList.remove('recording');const blob=new Blob(chunks,{type:recorder.mimeType});busy=true;refresh();try{await run(await blob.arrayBuffer(),'Dictée',autoInsert);}catch(error){busy=false;localBlabby.recordingState({recording:false,failed:true});$('error').textContent=error.message;refresh();}};
     recorder.start();recording=true;localBlabby.recordingState({recording:true});$('status').textContent='Enregistrement… Ctrl + Espace pour arrêter';$('record').textContent='Arrêter et transcrire';$('record').classList.add('recording');refresh();
     await startMeter();
   }catch(e){stream?.getTracks().forEach(t=>t.stop());localBlabby.recordingState({recording:false,failed:true});$('error').textContent='Microphone : '+e.message;}finally{starting=false;}
@@ -44,5 +44,6 @@ devices().catch(()=>{});
 console.log('Local controls ready');
 
 $('model').onchange=async()=>{const key=$('model').value;busy=true;refresh();$('error').textContent='';try{await localBlabby.selectModel(key);}catch(error){$('error').textContent=error.message;}finally{update(await localBlabby.status());}};
+
 
 
