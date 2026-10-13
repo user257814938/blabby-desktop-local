@@ -5,6 +5,10 @@ import json
 import sys
 import time
 
+# Electron writes UTF-8 to the pipe; Windows' default locale is not UTF-8.
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
+
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 user32.GetForegroundWindow.restype = wintypes.HWND
 user32.IsWindow.argtypes = [wintypes.HWND]

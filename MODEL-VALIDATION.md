@@ -24,3 +24,5 @@ Le menu de l'exécutable installé a également permis de charger Turbo puis de 
 Le menu de l'exécutable installé a également chargé Large-v3, puis permis le retour à Base. Les trois choix sont disponibles ; Base est laissé actif à la fin de la validation.
 
 Validation complémentaire du ciblage : Turbo avec microphone de test Chromium, texte Unicode effectivement observé dans la zone de texte d'une page locale Comet. Deux départs testés : champ web déjà actif ; départ depuis Blabby puis choix du champ avant l'arrêt. Empreinte du presse-papiers identique dans les deux cas. L'application a ensuite été relancée avec le microphone réel, en conservant Turbo sélectionné.
+
+Correction d'encodage : le module d'insertion lit explicitement le pipe Electron en UTF-8, au lieu de l'encodage Windows implicite. Validation avec Turbo et audio synthétique accentué : santé, nécessite, réunion, à, hôpital et coût apparaissent correctement dans la zone de texte Comet. Le micro réel est réactivé après le test.
