@@ -14,10 +14,26 @@ socket.socket.connect_ex = reject_network
 models = config.get('models', {'base': config['model']})
 selected = config.get('selectedModel', 'base')
 def load_model(key):
+    directory = models.get(key)
+    if not directory or not os.path.isdir(directory) or not os.path.isfile(os.path.join(directory, 'model.bin')):
+        raise ValueError(f'Modèle local {key} indisponible. Vérifiez son dossier et le fichier model.bin.')
     return WhisperModel(models[key], device='cpu', compute_type='int8',
                         local_files_only=True, cpu_threads=min(6, os.cpu_count() or 2))
-model = load_model(selected)
-print(json.dumps({'ready': True, 'model': selected}), flush=True)
+warning = None
+try:
+    model = load_model(selected)
+except Exception as error:
+    if selected == 'base':
+        print(f'Impossible de charger Base : {error}', file=sys.stderr, flush=True)
+        sys.exit(1)
+    warning = f'Le modèle {selected} ne se charge pas. Base est utilisé à la place.'
+    selected = 'base'
+    try:
+        model = load_model(selected)
+    except Exception as error:
+        print(f'Impossible de charger le modèle de secours Base : {error}', file=sys.stderr, flush=True)
+        sys.exit(1)
+print(json.dumps({'ready': True, 'model': selected, 'warning': warning}), flush=True)
 for line in sys.stdin:
     request = {}
     try:

@@ -75,3 +75,5 @@ La validation des modèles et les temps observés sur un court audio synthétiqu
 
 Si Ctrl + Espace est lancé depuis Blabby, sélectionner ensuite le champ de destination et arrêter la dictée depuis ce champ. La destination est alors capturée à l'arrêt. Depuis une autre application, la destination reste celle capturée au démarrage. Une erreur d'insertion externe ne rouvre plus automatiquement Blabby au premier plan.
 
+
+Au démarrage, si le modèle sélectionné manque ou ne se charge pas, Blabby tente automatiquement Base, affiche un avertissement et mémorise ce retour à Base. Les chemins locaux sont vérifiés avant chargement pour éviter de les interpréter comme des noms de modèles en ligne.

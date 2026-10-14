@@ -52,7 +52,9 @@ function startWorker() {
   readline.createInterface({input:worker.stdout}).on('line', line=>{
     try {
       const msg=JSON.parse(line);
-      if(msg.ready){ready=true;currentModel=msg.model||currentModel;status('Modèle prêt · fonctionnement local');
+      if(msg.ready){ready=true;currentModel=msg.model||currentModel;
+        if(modelConfig.selectedModel!==currentModel){modelConfig.selectedModel=currentModel;try{fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}catch(error){errors=error.message;}}
+        status(msg.warning||'Modèle prêt · fonctionnement local');
         if(process.env.BLABBY_TEST_AUDIO){setTimeout(async()=>{try{const result=await transcribe(fs.readFileSync(process.env.BLABBY_TEST_AUDIO),'fr');fs.writeFileSync(path.join(app.getPath('userData'),'integration-test.json'),JSON.stringify(result));win.webContents.send('local-test-result',result);}catch(e){status(e.message);}},500);}return;}
       if(active && msg.id===active.id){const job=active;active=null;busy=false;clearTimeout(job.timer);
         if(job.modelSwitch && !msg.error){currentModel=msg.model;modelConfig.selectedModel=currentModel;fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}

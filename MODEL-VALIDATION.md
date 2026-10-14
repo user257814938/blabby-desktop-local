@@ -28,3 +28,5 @@ Validation complémentaire du ciblage : Turbo avec microphone de test Chromium, 
 Correction d'encodage : le module d'insertion lit explicitement le pipe Electron en UTF-8, au lieu de l'encodage Windows implicite. Validation avec Turbo et audio synthétique accentué : santé, nécessite, réunion, à, hôpital et coût apparaissent correctement dans la zone de texte Comet. Le micro réel est réactivé après le test.
 
 Visualiseur pendant le traitement : test avec Turbo, audio synthétique et champ Comet. Après l'arrêt, la capsule reste visible avec une animation bleue ; après insertion du texte dans le navigateur, elle disparaît. L'état de traitement dépend de la fin effective de la transcription et de l'insertion, sans délai fixe par modèle.
+
+14 octobre 2026 : test avec dossier Turbo volontairement absent, démarrage sur Base et transcription réussie. Puis test intégré dans l'exécutable installé avec les vrais fichiers Turbo : démarrage et transcription de la phrase synthétique réussis. L'indisponibilité temporaire du dossier signalée par l'utilisateur n'a pas été reproduite ; les fichiers étaient présents pendant le diagnostic.
