@@ -34,7 +34,7 @@ L'installation initiale nécessite Internet. Ensuite la dictée utilise les fich
 
 ## Choix du modèle
 
-Le menu **Modèle** propose les modèles installés parmi Base, Large-v3 et Large-v3 Turbo. Les fichiers incomplets sont indisponibles. La dictée est désactivée pendant le changement. Un seul modèle est chargé à la fois et le choix est conservé dans `config.json`. Si le chargement échoue, le moteur tente de recharger le précédent.
+Le menu **Modèle** propose les modèles installés parmi Base, Small, Large-v3 et Large-v3 Turbo. Les fichiers incomplets sont indisponibles. La dictée est désactivée pendant le changement. Un seul modèle est chargé à la fois et le choix est conservé dans `config.json`. Si le chargement échoue, le moteur tente de recharger le précédent.
 
 Pour télécharger les versions CTranslate2 avec le CLI Hugging Face :
 
@@ -77,3 +77,17 @@ Si Ctrl + Espace est lancé depuis Blabby, sélectionner ensuite le champ de des
 
 
 Au démarrage, si le modèle sélectionné manque ou ne se charge pas, Blabby tente automatiquement Base, affiche un avertissement et mémorise ce retour à Base. Les chemins locaux sont vérifiés avant chargement pour éviter de les interpréter comme des noms de modèles en ligne.
+
+
+## Small et démarrage du raccourci
+
+Le processus Windows d'insertion est préparé au lancement de Blabby puis réutilisé pour les dictées. L'actualisation de la liste des microphones se fait après le démarrage de l'enregistrement. Le micro est toujours libéré à l'arrêt : aucun enregistrement permanent. La capsule s'affiche pendant la préparation, puis devient rouge quand le micro enregistre.
+
+Pour ajouter Small (inclure son fichier vocabulary.txt) :
+
+```powershell
+hf download Systran/faster-whisper-small --local-dir models/small --include model.bin config.json tokenizer.json vocabulary.txt
+py -3.12 scripts/configure.py --model "C:\chemin\vers\base" --small models/small
+```
+
+Sur l'installation de développement, les modèles Small, Large-v3 et Turbo sont conservés sous Documents/Codex/BlabbyModels pour éviter la redirection du dossier AppData/Local par le conteneur Windows de Codex. Chaque machine doit renseigner ses propres chemins.

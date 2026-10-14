@@ -30,3 +30,9 @@ Correction d'encodage : le module d'insertion lit explicitement le pipe Electron
 Visualiseur pendant le traitement : test avec Turbo, audio synthétique et champ Comet. Après l'arrêt, la capsule reste visible avec une animation bleue ; après insertion du texte dans le navigateur, elle disparaît. L'état de traitement dépend de la fin effective de la transcription et de l'insertion, sans délai fixe par modèle.
 
 14 octobre 2026 : test avec dossier Turbo volontairement absent, démarrage sur Base et transcription réussie. Puis test intégré dans l'exécutable installé avec les vrais fichiers Turbo : démarrage et transcription de la phrase synthétique réussis. L'indisponibilité temporaire du dossier signalée par l'utilisateur n'a pas été reproduite ; les fichiers étaient présents pendant le diagnostic.
+
+14 octobre : Small installé et SHA256 des poids vérifié (`3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671`). Son fichier vocabulary.txt est requis. Test Base → Small → Base réussi ; transcription de la phrase synthétique de 4,54 secondes en 8,40 secondes avec Small pendant ces travaux (pas une garantie de latence ni de précision).
+
+Sur l'exécutable installé, deux démarrages par Ctrl + Espace avec microphone simulé ont été mesurés à 258 ms et 132 ms entre la prise en compte du raccourci et la confirmation de l'enregistrement. Le même processus d'intégration Windows a été réutilisé. La latence du vrai micro peut différer. Les caractères accentués ont été observés dans le champ Comet ; la précision linguistique sur les phrases tronquées n'est pas évaluée par ce test.
+
+La seconde dictée a aussi conservé le presse-papiers (empreinte identique après les interactions de préparation du navigateur). L'application est ensuite relancée avec le vrai micro, Small sélectionné. Les fichiers Large-v3 et Turbo copiés dans le dossier stable ont également conservé leurs empreintes SHA256.

@@ -7,12 +7,13 @@ app.setPath('userData', path.join(app.getPath('appData'), 'blabby-local'));
 let win, worker, ready = false, busy = false, seq = 0, active;
 let errors = '';
 let modelConfig,currentModel='base';
-const modelLabels={base:'Whisper Base', 'large-v3':'Whisper Large-v3', 'large-v3-turbo':'Whisper Large-v3 Turbo'};
+const modelLabels={base:'Whisper Base', small:'Whisper Small', 'large-v3':'Whisper Large-v3', 'large-v3-turbo':'Whisper Large-v3 Turbo'};
 function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels).filter(id=>modelConfig?.models?.[id]).map(id=>({id,label:modelLabels[id],available:fs.existsSync(path.join(modelConfig.models[id],'model.bin'))}))};}
 let bubbleTimer;
 let tray,quitting=false;
 let shortcutRecording=false;
 let processing=false;
+let activationStarted=0;
 const singleInstance=app.requestSingleInstanceLock();
 if(!singleInstance)app.quit();
 let overlay, nativePython, externalTarget, recording = false, shortcutPending = false, shortcutAvailable = false, insertionInProgress = false;
@@ -31,21 +32,34 @@ function bubble(message, visible = true) {
     overlay.showInactive();
   }else overlay.hide();
 }
-function native(action, target, text) {
+let nativeWorker,nativeSequence=0;
+const nativeJobs=new Map();
+function startNative(){
+  if(nativeWorker&&!nativeWorker.killed)return;
+  const helper=spawn(nativePython,['-u',path.join(assets,'native_input.py')],{windowsHide:true});
+  nativeWorker=helper;
+  const fail=()=>{if(nativeWorker!==helper)return;nativeWorker=null;for(const job of nativeJobs.values()){clearTimeout(job.timer);job.reject(new Error('Intégration Windows indisponible'));}nativeJobs.clear();};
+  readline.createInterface({input:helper.stdout}).on('line',line=>{
+    try{const result=JSON.parse(line),job=nativeJobs.get(result.id);if(!job)return;
+      nativeJobs.delete(result.id);clearTimeout(job.timer);
+      if(result.error)job.reject(new Error(result.error));else job.resolve(result);
+    }catch(error){fail();helper.kill();}
+  });
+  helper.stdin.on('error',fail);helper.on('error',fail);helper.on('exit',fail);
+}
+function native(action,target,text){
+  startNative();
   return new Promise((resolve,reject)=>{
-    const helper=spawn(nativePython,['-u',path.join(assets,'native_input.py')],{windowsHide:true});
-    let output='';const timer=setTimeout(()=>{helper.kill();reject(new Error('Intégration Windows indisponible'));},5000);
-    helper.stdout.on('data',data=>{output+=data.toString();});
-    helper.on('error',error=>{clearTimeout(timer);reject(error);});
-    helper.on('exit',()=>{clearTimeout(timer);try{const result=JSON.parse(output);if(result.error)reject(new Error(result.error));else resolve(result);}catch(error){reject(new Error('Intégration Windows indisponible'));}});
-    helper.stdin.on('error',()=>{});
-    helper.stdin.end(JSON.stringify({action,target,text}));
+    const id=++nativeSequence;
+    const timer=setTimeout(()=>{nativeJobs.delete(id);reject(new Error('Intégration Windows indisponible'));nativeWorker?.kill();},5000);
+    nativeJobs.set(id,{resolve,reject,timer});
+    nativeWorker.stdin.write(JSON.stringify({id,action,target,text})+'\n');
   });
 }
 function startWorker() {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
   modelConfig=config;config.models ||= {base:config.model};currentModel=config.selectedModel||'base';
-  nativePython=config.python;
+  nativePython=config.python;startNative();
   worker = spawn(config.python, ['-u', path.join(assets, 'worker.py'), configPath], {
     windowsHide:true, env:{...process.env, HF_HUB_OFFLINE:'1', HF_HUB_DISABLE_TELEMETRY:'1'}
   });
@@ -123,6 +137,7 @@ app.whenReady().then(async()=>{
   });
   ipcMain.on('local-recording-state',(_,value)=>{
     recording=Boolean(value.recording);shortcutPending=false;
+    if(recording&&activationStarted){try{fs.writeFileSync(path.join(app.getPath('userData'),'activation-metrics.json'),JSON.stringify({startLatencyMs:Date.now()-activationStarted,model:currentModel}));}catch(error){}activationStarted=0;}
     if(recording){processing=false;bubble('Enregistrement · Ctrl + Espace pour arrêter');}
     if(!recording){
       processing=!value.failed;
@@ -167,6 +182,7 @@ app.whenReady().then(async()=>{
   shortcutAvailable=globalShortcut.register('Control+Space',async()=>{
     if(!ready||busy||processing||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
     shortcutPending=true;
+    if(!recording){activationStarted=Date.now();processing=true;bubble('Préparation du microphone…');}
     try{
       if(!recording || (shortcutRecording&&!externalTarget)){
         const result=await native('capture');externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;
@@ -174,12 +190,13 @@ app.whenReady().then(async()=>{
       if(!recording)shortcutRecording=true;
       if(!recording && !externalTarget && win.isFocused())win.minimize();
       win.webContents.send('local-toggle-recording',{external:Boolean(externalTarget)});
-    }catch(error){shortcutPending=false;status(error.message);}
+    }catch(error){shortcutPending=false;processing=false;activationStarted=0;bubble('',false);status(error.message);}
   });
   startWorker();
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();tray?.destroy();});
+app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();nativeWorker?.kill();tray?.destroy();});
+
 
 
 

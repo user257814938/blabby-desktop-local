@@ -90,9 +90,13 @@ def run(request):
 
 
 if __name__ == "__main__":
-    try:
-        result = run(json.load(sys.stdin))
-    except Exception as error:
-        result = {"error": str(error)}
-    print(json.dumps(result, ensure_ascii=True), flush=True)
+    for line in sys.stdin:
+        request = {}
+        try:
+            request = json.loads(line)
+            result = run(request)
+        except Exception as error:
+            result = {"error": str(error)}
+        result['id'] = request.get('id')
+        print(json.dumps(result, ensure_ascii=True), flush=True)
 
