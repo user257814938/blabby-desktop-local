@@ -12,6 +12,7 @@ const windowsJobs=new Map();
 const modelLabels={base:'Whisper Base', small:'Whisper Small', 'large-v3':'Whisper Large-v3', 'large-v3-turbo':'Whisper Large-v3 Turbo','windows-local':'Windows local — SAPI'};
 function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels).filter(id=>id==='windows-local'||modelConfig?.models?.[id]).map(id=>({id,label:modelLabels[id],available:id==='windows-local'?windowsReady:fs.existsSync(path.join(modelConfig.models[id],'model.bin'))}))};}
 let bubbleTimer;
+let targetCapture=null,targetCaptureError=null;
 let tray,quitting=false;
 let shortcutRecording=false;
 let processing=false;
@@ -165,7 +166,7 @@ app.whenReady().then(async()=>{
     if(recording){processing=false;bubble('Enregistrement · Ctrl + Espace pour arrêter');}
     if(!recording){
       processing=!value.failed;
-      if(value.failed){externalTarget=null;shortcutRecording=false;}
+      if(value.failed){externalTarget=null;shortcutRecording=false;targetCapture=null;targetCaptureError=null;}
       bubble(processing?'Transcription en cours…':'',processing);
     }
   });
@@ -175,12 +176,15 @@ app.whenReady().then(async()=>{
   });
   ipcMain.handle('local-transcribe',async(_,buffer,lang,insert)=>{
     const fromShortcut=shortcutRecording;
-    const target=fromShortcut?externalTarget:null;externalTarget=null;shortcutRecording=false;
+    if(fromShortcut&&targetCapture)await targetCapture;
+    const captureError=fromShortcut?targetCaptureError:null;
+    const target=fromShortcut?externalTarget:null;externalTarget=null;shortcutRecording=false;targetCapture=null;targetCaptureError=null;
     insertionInProgress=true;
       processing=true;bubble('Transcription en cours…');
     let inserted=false;
     try{
       const result=await (currentModel==='windows-local'?windowsRequest('stop',lang):transcribe(buffer,lang));
+      if(captureError)result.insertionError='La destination n’a pas pu être identifiée. Le texte reste dans Blabby : '+captureError;
       if(target && result.text){
         try{await native('type',target,result.text);result.inserted=true;inserted=true;}
         catch(error){result.insertionError=error.message;}
@@ -206,15 +210,28 @@ app.whenReady().then(async()=>{
   shortcutAvailable=globalShortcut.register('Control+Space',async()=>{
     if(!ready||busy||processing||insertionInProgress||shortcutPending||!win||win.isDestroyed())return;
     shortcutPending=true;
-    if(!recording){activationStarted=Date.now();processing=true;bubble('Préparation du microphone…');}
+    if(!recording){
+      activationStarted=Date.now();processing=true;shortcutRecording=true;
+      externalTarget=null;targetCaptureError=null;
+      const beganInBlabby=win.isFocused();
+      // Queue foreground capture first, but do not wait for it to open the mic.
+      const capture=native('capture').then(result=>{
+        if(targetCapture!==capture||!shortcutRecording)return;
+        externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;
+        if(beganInBlabby&&!externalTarget&&win.isFocused())win.minimize();
+      }).catch(error=>{if(targetCapture===capture)targetCaptureError=error.message;});
+      targetCapture=capture;
+      win.webContents.send('local-toggle-recording',{external:true});
+      bubble('Préparation du microphone…');
+      return;
+    }
     try{
-      if(!recording || (shortcutRecording&&!externalTarget)){
+      if(targetCapture)await targetCapture;
+      if(shortcutRecording&&!externalTarget&&!targetCaptureError){
         const result=await native('capture');externalTarget=result.target?.hwnd&&result.target.pid!==process.pid?result.target:null;
       }
-      if(!recording)shortcutRecording=true;
-      if(!recording && !externalTarget && win.isFocused())win.minimize();
       win.webContents.send('local-toggle-recording',{external:Boolean(externalTarget)});
-    }catch(error){shortcutPending=false;processing=false;activationStarted=0;bubble('',false);status(error.message);}
+    }catch(error){shortcutPending=false;status(error.message);}
   });
   startWorker();
 });
