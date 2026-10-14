@@ -34,7 +34,7 @@ L'installation initiale nécessite Internet. Ensuite la dictée utilise les fich
 
 ## Choix du modèle
 
-Le menu **Modèle** propose les modèles installés parmi Base, Small, Large-v3 et Large-v3 Turbo. Les fichiers incomplets sont indisponibles. La dictée est désactivée pendant le changement. Un seul modèle est chargé à la fois et le choix est conservé dans `config.json`. Si le chargement échoue, le moteur tente de recharger le précédent.
+Le menu **Moteur / modèle** propose les modèles installés parmi Base, Small, Large-v3 et Large-v3 Turbo. Les fichiers incomplets sont indisponibles. La dictée est désactivée pendant le changement. Un seul modèle est chargé à la fois et le choix est conservé dans `config.json`. Si le chargement échoue, le moteur tente de recharger le précédent.
 
 Pour télécharger les versions CTranslate2 avec le CLI Hugging Face :
 
@@ -55,7 +55,7 @@ npm run check
 npm run build
 ```
 
-Le résultat est `dist/app.asar`, une archive Electron, pas un installateur autonome. Une distribution complète nécessite également Electron, Python, les dépendances et le modèle. En mode empaqueté, `worker.py`, `native_input.py`, `config.json` et `python-libs` sont attendus dans `resources/blabby-local`. Adapter les chemins de configuration à la machine cible.
+Le résultat est `dist/app.asar`, une archive Electron, pas un installateur autonome. Une distribution complète nécessite également Electron, Python, les dépendances et le modèle. En mode empaqueté, `worker.py`, `native_input.py`, `windows_speech.ps1`, `config.json` et `python-libs` sont attendus dans `resources/blabby-local`. Adapter les chemins de configuration à la machine cible.
 
 ## Organisation et état
 
@@ -91,3 +91,13 @@ py -3.12 scripts/configure.py --model "C:\chemin\vers\base" --small models/small
 ```
 
 Sur l'installation de développement, les modèles Small, Large-v3 et Turbo sont conservés sous Documents/Codex/BlabbyModels pour éviter la redirection du dossier AppData/Local par le conteneur Windows de Codex. Chaque machine doit renseigner ses propres chemins.
+
+## Moteur Windows local
+
+Le sélecteur propose **Windows local — SAPI** en plus de Whisper. Il utilise System.Speech dans Windows PowerShell 5 et un pack de reconnaissance Windows installé (fr-FR testé). Ce moteur local est distinct de Win + H et de Voice Access. Le microphone est celui par défaut de Windows ; le sélecteur de micro et l’import de fichiers sont désactivés dans ce mode. Une langue non installée affiche une erreur.
+
+Les hypothèses apparaissent pendant la dictée dans Blabby et peuvent changer. Le texte final est inséré à l’arrêt de Ctrl + Espace, sans modifier le presse-papiers. Le choix du moteur est enregistré dans config.json (engine), séparément du dernier modèle Whisper (selectedModel). Whisper reste chargé pour faciliter le retour. Le processus SAPI est préparé au lancement, mais ne capture le micro que pendant une dictée.
+
+`windows_speech.ps1` : service JSON-lines de reconnaissance locale, hypothèses et niveau audio. `main.js` le pilote via IPC ; `renderer.js` affiche les résultats provisoires. Windows PowerShell et un recognizer SAPI installé sont nécessaires.
+
+Validation : audio synthétique français reconnu, résultats provisoires affichés dans l’interface, résultat final avec accents inséré dans un champ de navigateur via Ctrl + Espace, presse-papiers inchangé. Le test ne mesure pas la précision sur une voix humaine. Whisper continue de transcrire après l’arrêt ; son affichage progressif n’est pas implémenté.

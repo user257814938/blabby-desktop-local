@@ -6,9 +6,11 @@ const readline = require('node:readline');
 app.setPath('userData', path.join(app.getPath('appData'), 'blabby-local'));
 let win, worker, ready = false, busy = false, seq = 0, active;
 let errors = '';
-let modelConfig,currentModel='base';
-const modelLabels={base:'Whisper Base', small:'Whisper Small', 'large-v3':'Whisper Large-v3', 'large-v3-turbo':'Whisper Large-v3 Turbo'};
-function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels).filter(id=>modelConfig?.models?.[id]).map(id=>({id,label:modelLabels[id],available:fs.existsSync(path.join(modelConfig.models[id],'model.bin'))}))};}
+let modelConfig,currentModel='base',whisperReady=false;
+let windowsWorker,windowsReady=false,windowsCultures=[],windowsSequence=0;
+const windowsJobs=new Map();
+const modelLabels={base:'Whisper Base', small:'Whisper Small', 'large-v3':'Whisper Large-v3', 'large-v3-turbo':'Whisper Large-v3 Turbo','windows-local':'Windows local — SAPI'};
+function modelStatus(){return {model:currentModel,models:Object.keys(modelLabels).filter(id=>id==='windows-local'||modelConfig?.models?.[id]).map(id=>({id,label:modelLabels[id],available:id==='windows-local'?windowsReady:fs.existsSync(path.join(modelConfig.models[id],'model.bin'))}))};}
 let bubbleTimer;
 let tray,quitting=false;
 let shortcutRecording=false;
@@ -56,9 +58,28 @@ function native(action,target,text){
     nativeWorker.stdin.write(JSON.stringify({id,action,target,text})+'\n');
   });
 }
+function startWindows(){
+  windowsWorker=spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(assets,'windows_speech.ps1')],{windowsHide:true});
+  const fail=()=>{windowsReady=false;if(currentModel==='windows-local'){ready=false;recording=false;processing=false;bubble('',false);status('Le moteur Windows est arrêté. Sélectionnez Whisper pour continuer.');}for(const job of windowsJobs.values()){clearTimeout(job.timer);job.reject(new Error('Moteur Windows indisponible'));}windowsJobs.clear();};
+  readline.createInterface({input:windowsWorker.stdout}).on('line',line=>{
+    try{const result=JSON.parse(line);
+      if(result.ready){windowsReady=true;windowsCultures=result.cultures;if(currentModel==='windows-local')ready=true;status(ready?'Moteur prêt · fonctionnement local':'Chargement du modèle…');return;}
+      if(result.partial){if(currentModel==='windows-local')win.webContents.send('local-live-result',result);return;}
+      if(Number.isFinite(result.level)){if(recording&&currentModel==='windows-local')overlay.webContents.send('local-audio-level',result.level);return;}
+      const job=windowsJobs.get(result.id);if(!job)return;windowsJobs.delete(result.id);clearTimeout(job.timer);if(result.error)job.reject(new Error(result.error));else job.resolve(result);
+    }catch(error){fail();windowsWorker.kill();}
+  });
+  windowsWorker.stderr.on('data',()=>{});windowsWorker.stdin.on('error',fail);windowsWorker.on('error',fail);windowsWorker.on('exit',fail);
+}
+function windowsRequest(action,language){
+  if(!windowsReady)throw new Error('Moteur Windows non disponible');
+  const culture=language?windowsCultures.find(value=>value.startsWith(language+'-')):windowsCultures[0];
+  if(action==='start'&&!culture)throw new Error('Langue Windows non installée : '+language);
+  return new Promise((resolve,reject)=>{const id=++windowsSequence;const timer=setTimeout(()=>{windowsJobs.delete(id);windowsWorker.kill();reject(new Error('Moteur Windows interrompu'));},15000);windowsJobs.set(id,{resolve,reject,timer});windowsWorker.stdin.write(JSON.stringify({id,action,culture,testAudio:process.env.BLABBY_WINDOWS_TEST_AUDIO||null})+'\n');});
+}
 function startWorker() {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
-  modelConfig=config;config.models ||= {base:config.model};currentModel=config.selectedModel||'base';
+  modelConfig=config;config.models ||= {base:config.model};currentModel=config.engine==='windows-local'?'windows-local':(config.selectedModel||'base');startWindows();
   nativePython=config.python;startNative();
   worker = spawn(config.python, ['-u', path.join(assets, 'worker.py'), configPath], {
     windowsHide:true, env:{...process.env, HF_HUB_OFFLINE:'1', HF_HUB_DISABLE_TELEMETRY:'1'}
@@ -66,19 +87,19 @@ function startWorker() {
   readline.createInterface({input:worker.stdout}).on('line', line=>{
     try {
       const msg=JSON.parse(line);
-      if(msg.ready){ready=true;currentModel=msg.model||currentModel;
-        if(modelConfig.selectedModel!==currentModel){modelConfig.selectedModel=currentModel;try{fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}catch(error){errors=error.message;}}
+      if(msg.ready){whisperReady=true;ready=currentModel==='windows-local'?windowsReady:true;const loadedModel=msg.model||modelConfig.selectedModel||'base';if(currentModel!=='windows-local')currentModel=loadedModel;
+        if(modelConfig.selectedModel!==loadedModel){modelConfig.selectedModel=loadedModel;try{fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}catch(error){errors=error.message;}}
         status(msg.warning||'Modèle prêt · fonctionnement local');
         if(process.env.BLABBY_TEST_AUDIO){setTimeout(async()=>{try{const result=await transcribe(fs.readFileSync(process.env.BLABBY_TEST_AUDIO),'fr');fs.writeFileSync(path.join(app.getPath('userData'),'integration-test.json'),JSON.stringify(result));win.webContents.send('local-test-result',result);}catch(e){status(e.message);}},500);}return;}
       if(active && msg.id===active.id){const job=active;active=null;busy=false;clearTimeout(job.timer);
-        if(job.modelSwitch && !msg.error){currentModel=msg.model;modelConfig.selectedModel=currentModel;fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}
+        if(job.modelSwitch && !msg.error){currentModel=msg.model;ready=true;modelConfig.engine='whisper';modelConfig.selectedModel=currentModel;fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));}
         if(msg.error) job.reject(new Error(msg.error)); else job.resolve(msg);
         status(msg.error || (job.modelSwitch?'Modèle prêt · fonctionnement local':'Transcription terminée'));}
     } catch(e) { status('Erreur de communication avec le moteur'); }
   });
   worker.stderr.on('data',d=>{ errors=(errors+d.toString()).slice(-4000); });
-  worker.on('error',e=>{ready=false;status(e.message);});
-  worker.on('exit',()=>{ready=false;busy=false;if(active){clearTimeout(active.timer);active.reject(new Error(errors || 'Moteur arrêté'));active=null;}status(errors || 'Moteur arrêté');});
+  worker.on('error',e=>{whisperReady=false;if(currentModel!=='windows-local'){ready=false;status(e.message);}});
+  worker.on('exit',()=>{whisperReady=false;if(currentModel!=='windows-local'){ready=false;busy=false;}if(active){clearTimeout(active.timer);active.reject(new Error(errors || 'Moteur arrêté'));active=null;}if(currentModel!=='windows-local')status(errors || 'Moteur arrêté');});
 }
 function transcribe(buffer, language) {
   if(!ready) throw new Error('Le modèle est encore en cours de chargement.');
@@ -125,7 +146,9 @@ app.whenReady().then(async()=>{
   win.loadFile(path.join(__dirname,'index.html'));
   ipcMain.handle('local-status',()=>({ready,busy,shortcutAvailable,...modelStatus(),message:ready?'Modèle prêt · fonctionnement local':'Chargement du modèle…'}));
   ipcMain.handle('local-model',async(_,key)=>{
-    if(!ready||busy||recording||processing||shortcutPending||insertionInProgress)throw new Error('Attendez la fin de la dictée ou du chargement.');
+    if(busy||recording||processing||shortcutPending||insertionInProgress)throw new Error('Attendez la fin de la dictée ou du chargement.');
+    if(key==='windows-local'){if(!windowsReady)throw new Error('Moteur Windows non installé ou encore en préparation');currentModel=key;ready=true;modelConfig.engine=key;fs.writeFileSync(configPath,JSON.stringify(modelConfig,null,2));status('Dictée Windows locale prête');return {model:key};}
+    if(!whisperReady)throw new Error('Whisper est encore en chargement.');
     if(!modelConfig.models[key]||!fs.existsSync(path.join(modelConfig.models[key],'model.bin')))throw new Error('Modèle non installé');
     busy=true;status('Chargement de '+modelLabels[key]+'…');
     return new Promise((resolve,reject)=>{
@@ -135,6 +158,7 @@ app.whenReady().then(async()=>{
       worker.stdin.write(JSON.stringify({id,action:'model',model:key})+'\n',error=>{if(error&&active?.id===id){clearTimeout(timer);active=null;busy=false;status(error.message);reject(error);}});
     });
   });
+  ipcMain.handle('local-windows-start',(_,language)=>{if(currentModel!=='windows-local')throw new Error('Sélectionnez Windows local');return windowsRequest('start',language);});
   ipcMain.on('local-recording-state',(_,value)=>{
     recording=Boolean(value.recording);shortcutPending=false;
     if(recording&&activationStarted){try{fs.writeFileSync(path.join(app.getPath('userData'),'activation-metrics.json'),JSON.stringify({startLatencyMs:Date.now()-activationStarted,model:currentModel}));}catch(error){}activationStarted=0;}
@@ -156,7 +180,7 @@ app.whenReady().then(async()=>{
       processing=true;bubble('Transcription en cours…');
     let inserted=false;
     try{
-      const result=await transcribe(buffer,lang);
+      const result=await (currentModel==='windows-local'?windowsRequest('stop',lang):transcribe(buffer,lang));
       if(target && result.text){
         try{await native('type',target,result.text);result.inserted=true;inserted=true;}
         catch(error){result.insertionError=error.message;}
@@ -195,7 +219,7 @@ app.whenReady().then(async()=>{
   startWorker();
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();nativeWorker?.kill();tray?.destroy();});
+app.on('before-quit',()=>{quitting=true;clearTimeout(bubbleTimer);globalShortcut.unregisterAll();worker?.kill();nativeWorker?.kill();windowsWorker?.kill();tray?.destroy();});
 
 
 
