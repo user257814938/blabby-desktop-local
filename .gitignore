@@ -12,3 +12,6 @@ __pycache__/
 *.webm
 *.mp3
 *.asar
+
+local-installation/
+*.exe

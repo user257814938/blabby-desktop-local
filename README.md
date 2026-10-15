@@ -103,3 +103,9 @@ Les hypothèses apparaissent pendant la dictée dans Blabby et peuvent changer. 
 Validation : audio synthétique français reconnu, résultats provisoires affichés dans l’interface, résultat final avec accents inséré dans un champ de navigateur via Ctrl + Espace, presse-papiers inchangé. Le test ne mesure pas la précision sur une voix humaine. Whisper continue de transcrire après l’arrêt ; son affichage progressif n’est pas implémenté.
 
 Le raccourci lance désormais le microphone sans attendre la réponse du helper de capture de fenêtre. La destination est récupérée en parallèle et attendue avant insertion. Cela supprime une attente logicielle ; l’ouverture du périphérique conserve sa propre latence. Aucun tampon audio permanent ni écoute hors dictée n’est ajouté.
+
+## Téléchargement du prototype
+
+Fichiers locaux : dist/Blabby.exe et dist/app.asar. EXE Electron, pas un installateur autonome ; dépendances requises. Ancienne copie de travail et résultats dans local-installation/ (ignoré par Git).
+
+[Release GitHub](https://github.com/user257814938/blabby-desktop-local/releases/tag/desktop-local-b7e12ab). Les binaires restent dans les releases, pas dans l’historique des sources.
